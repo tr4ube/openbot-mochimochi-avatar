@@ -83,9 +83,8 @@ Schema (validated by `isCharacterArt` in the patch):
 }
 ```
 
-Two working samples are in `characters/`: `mari-v1.json`
-(`character:mari-v1`) and `halo-v1.json` (`character:halo-v1`). Copy them into
-the `characters/` directory above to try the feature.
+A working sample is in `characters/`: `mari-v1.json` (`character:mari-v1`).
+Copy it into the `characters/` directory above to try the feature.
 
 ## License
 
