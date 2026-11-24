@@ -1,0 +1,55 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout patch repository
+        uses: actions/checkout@v4
+
+      - name: Clone upstream v0.77.0
+        run: git -c core.autocrlf=false clone --depth 1 --branch v0.77.0 https://github.com/nightly-labs/openbot.git openbot
+
+      - name: Apply patch
+        run: |
+          git -C openbot apply --check ../patches/character-art-v0.77.0.patch
+          git -C openbot apply ../patches/character-art-v0.77.0.patch
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+
+      - name: Install dependencies
+        working-directory: openbot
+        timeout-minutes: 30
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: openbot
+        timeout-minutes: 30
+        run: |
+          bun run typecheck:node
+          bun run typecheck:renderer
+          bun run typecheck:contracts
+          bun run typecheck:i18n
+          bun run typecheck:mobile
+
+      - name: Patch tests
+        working-directory: openbot
+        timeout-minutes: 20
+        run: bun run test:desktop -- src/main/ipc-channel-coverage.test.ts src/renderer/src/features/sidebar/MariAvatar.test.tsx apps/mobile/src/features/agents/model/mari-motion.test.ts
