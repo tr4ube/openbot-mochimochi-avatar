@@ -177,8 +177,7 @@ jobs:
           api-level: 34
           arch: x86_64
           script: |
-            APK=$(find "$GITHUB_WORKSPACE" -name 'app-debug.apk' -print -quit)
-            adb install -r "$APK"
+            adb install -r "$(find "$GITHUB_WORKSPACE" -name 'app-debug.apk' -print -quit)"
             adb shell monkey -p run.openbot.mobile -c android.intent.category.LAUNCHER 1
             sleep 30
             adb shell screencap -p /sdcard/launch.png
