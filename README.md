@@ -16,17 +16,35 @@ over the Team API.
 
 Target version: **OpenBot v0.77.0** (`git tag v0.77.0`, commit `1dbc27f`).
 
+Requires `git`, `bun` (the repository pins `bun@1.4.2` via `packageManager`),
+and Node >= 24. Clone both repositories side by side so the patch path below
+works verbatim:
+
 ```sh
+git clone https://github.com/tr4ube/openbot-mochimochi-avatar.git
 git clone --depth 1 --branch v0.77.0 https://github.com/nightly-labs/openbot.git openbot
 cd openbot
-git apply --check /path/to/patches/character-art-v0.77.0.patch
-git apply        /path/to/patches/character-art-v0.77.0.patch
-bun install --frozen-lockfile
+git apply --check ../openbot-mochimochi-avatar/patches/character-art-v0.77.0.patch
+git apply        ../openbot-mochimochi-avatar/patches/character-art-v0.77.0.patch
+bun install --frozen-lockfile   # postinstall fetches an Electron dist; needs network
+bun run typecheck:node && bun run typecheck:renderer   # quick first check
+bun run typecheck:mobile                               # apps/mobile (runs codegen first)
 bun run build    # or the dev workflow described in the repository
 ```
 
 On any other upstream version the context lines may drift; `git apply --check`
 tells you first. See "Version policy" below.
+
+## Verify
+
+```sh
+bun run test:desktop -- src/main/ipc-channel-coverage.test.ts \
+  src/renderer/src/features/sidebar/MariAvatar.test.tsx
+bun run test:desktop -- apps/mobile/src/features/agents/model/mari-motion.test.ts
+```
+
+The mobile test runs under the root vitest project; `apps/mobile` has no own
+`test` script.
 
 ## Version policy
 
@@ -36,12 +54,14 @@ tells you first. See "Version policy" below.
 
 | Upstream version | Patch file | Verified |
 |---|---|---|
-| v0.77.0 | `patches/character-art-v0.77.0.patch` | `git apply --check` PASS on a clean `v0.77.0` tree; `bun run typecheck:node` and `typecheck:renderer` PASS; `ipc-channel-coverage` 14/14, `MariAvatar.test` 2/2, `mari-motion.test` 8/8 PASS |
+| v0.77.0 | `patches/character-art-v0.77.0.patch` | `git apply --check`/`git apply` PASS on a clean `v0.77.0` tree; `typecheck:node`, `typecheck:renderer`, `typecheck:contracts`, `typecheck:i18n` and `typecheck:mobile` PASS; `ipc-channel-coverage` 14/14, `MariAvatar.test` 2/2, `mari-motion.test` 8/8 PASS |
 
 ## Adding a character
 
-Drop a JSON file into the app's user-data `characters/` directory — on Linux,
-`~/.config/OpenBot/characters/<id>.json`. The file id must match
+Drop a JSON file into the app's user-data `characters/` directory —
+`~/.config/OpenBot/characters/<id>.json` on Linux,
+`~/Library/Application Support/OpenBot/characters/<id>.json` on macOS, or
+`%APPDATA%\OpenBot\characters\<id>.json` on Windows. The file id must match
 `^[a-z0-9-]{1,100}$`. Set the agent's avatar seed to `character:<id>`. The
 folder is re-read when a window gains focus; no restart needed.
 
@@ -63,7 +83,7 @@ Schema (validated by `isCharacterArt` in the patch):
 
 Two working samples are in `characters/`: `mari-v1.json`
 (`character:mari-v1`) and `halo-v1.json` (`character:halo-v1`). Copy them into
-`~/.config/OpenBot/characters/` to try the feature.
+the `characters/` directory above to try the feature.
 
 ## License
 
