@@ -100,7 +100,7 @@ index 3efd9bc..8b4cab6 100644
      <View
 diff --git a/apps/mobile/src/features/agents/components/mari-avatar.tsx b/apps/mobile/src/features/agents/components/mari-avatar.tsx
 new file mode 100644
-index 0000000..b5a2066
+index 0000000..7dae690
 --- /dev/null
 +++ b/apps/mobile/src/features/agents/components/mari-avatar.tsx
 @@ -0,0 +1,314 @@
@@ -128,7 +128,7 @@ index 0000000..b5a2066
 +  mariOutline,
 +  mariPoseMatrix,
 +} from "@/features/agents/model/mari-motion";
-+import { useAppDrawerShown, useAppDrawerShownOnUI } from "@/features/servers/components/app-drawer-activity";
++import { useAppDrawerShownOnUI } from "@/features/servers/components/app-drawer-activity";
 +import { DISCONNECTED_APPEARANCE } from "@/features/workspace/components/use-connection-appearance";
 +import { useMotionPreference } from "@/shared/lib/motion";
 +import { isAndroid } from "@/shared/lib/platform";
@@ -193,8 +193,8 @@ index 0000000..b5a2066
 +  const wantsMotion = !disconnected && (mode === "thinking" || animate);
 +  const focused = useScreenFocusedWhile(wantsMotion && !still);
 +  const active = wantsMotion && focused && !still;
-+  const drawerCovered = useAppDrawerShown();
 +  const drawerShown = useAppDrawerShownOnUI();
++  const drawerCovered = drawerShown.get();
 +  const resting = mode === "happy" ? 1 : 0;
 +  const elapsed = useSharedValue(0);
 +  const closure = useSharedValue<MariClosureJob>({
@@ -420,7 +420,7 @@ index 0000000..b5a2066
 +});
 diff --git a/apps/mobile/src/features/agents/model/character-art.ts b/apps/mobile/src/features/agents/model/character-art.ts
 new file mode 100644
-index 0000000..f9f5141
+index 0000000..ffd140f
 --- /dev/null
 +++ b/apps/mobile/src/features/agents/model/character-art.ts
 @@ -0,0 +1,51 @@
@@ -467,7 +467,7 @@ index 0000000..f9f5141
 +  );
 +  const embedded = embeddedCharacterArt(seed);
 +  const remote = useQuery({
-+    queryKey: queryKeys.characterArt(queryScope, hostId, seed),
++    queryKey: queryKeys.characterArt(queryScope, hostId ?? undefined, seed),
 +    enabled: embedded === null && isCharacterSeed(seed) && Boolean(hostId),
 +    queryFn: () => (hostId ? workspace().loadCharacterArt(seed, hostId) : Promise.reject(new Error("No server."))),
 +    staleTime: Infinity,
@@ -1167,6 +1167,24 @@ index 5868266..17d8fb4 100644
  
    serverMembers: (scope: QueryScope, serverId: string) => ["server-members", ...scope, serverId],
    serverInvites: (scope: QueryScope, serverId: string) => ["server-invites", ...scope, serverId],
+diff --git a/apps/mobile/src/features/workspace/model/workspace-types.ts b/apps/mobile/src/features/workspace/model/workspace-types.ts
+index d2dbd23..6042912 100644
+--- a/apps/mobile/src/features/workspace/model/workspace-types.ts
++++ b/apps/mobile/src/features/workspace/model/workspace-types.ts
+@@ -1,4 +1,5 @@
+ import type { AttachmentSupport } from "@openbot/contracts/attachment-files";
++import type { CharacterArt } from "@openbot/contracts/character-art";
+ import type {
+   AddAgentFolderInput,
+   AddedAgent,
+@@ -579,6 +580,7 @@ export interface MobileWorkspaceContextValue {
+   updateAgent: (input: UpdateAgentInput, serverId?: string) => Promise<void>;
+   setAgentAvatar: (agentId: string, image: RemoteFileUpload | null, serverId: string) => Promise<void>;
+   loadAgentAvatar: (agentId: string, avatarUrl: string, serverId: string) => Promise<string>;
++  loadCharacterArt: (seed: string, serverId: string) => Promise<CharacterArt>;
+   deleteAgent: (agentId: string, serverId?: string) => Promise<void>;
+   duplicateAgent: (agentId: string) => Promise<void>;
+   saveAgentMemory: (agentId: string, text: string, serverId: string, memoryId?: string) => Promise<void>;
 diff --git a/packages/contracts/package.json b/packages/contracts/package.json
 index 40fd828..3520f72 100644
 --- a/packages/contracts/package.json
