@@ -1445,7 +1445,7 @@ index 15ba7d6..0488212 100644
      "./features/agents/AgentSearchSelect": "./src/features/agents/AgentSearchSelect.tsx",
      "./features/agents/AgentDeleteUndoToast": "./src/features/agents/AgentDeleteUndoToast.tsx",
 diff --git a/packages/ui/src/features/agents/AgentAvatar.tsx b/packages/ui/src/features/agents/AgentAvatar.tsx
-index ed7a510..b69bc57 100644
+index ed7a510..726429c 100644
 --- a/packages/ui/src/features/agents/AgentAvatar.tsx
 +++ b/packages/ui/src/features/agents/AgentAvatar.tsx
 @@ -16,6 +16,8 @@ import type { AgentProfile } from "../../data";
@@ -1457,7 +1457,17 @@ index ed7a510..b69bc57 100644
  
  const AVATAR_FPS = 80;
  
-@@ -124,23 +126,42 @@ export function AgentAvatar(props: AgentAvatarProps) {
+@@ -115,6 +117,9 @@ export function AgentAvatar(props: AgentAvatarProps) {
+   );
+   const className = () => `agent-avatar agent-avatar-motion-${motion()} ${props.class ?? ""}`;
+   const ambientMotion = useAmbientMotion();
++  const art = createMemo(() =>
++    props.shape === undefined && props.expression === undefined ? characterArt(seed()) : undefined,
++  );
+   const breathe = () => (PLUSH_MOODS[mood()].busy && ambientMotion() ? PHOTO_BREATHE : undefined);
+   const photoStyle = (): Record<string, string> => {
+     const amount = breathe();
+@@ -124,23 +129,42 @@ export function AgentAvatar(props: AgentAvatarProps) {
      <Show
        when={url() && !imageFailed()}
        fallback={
@@ -1479,7 +1489,7 @@ index ed7a510..b69bc57 100644
 -          style={props.style}
 -        />
 +        <Show
-+          when={characterArt(seed())}
++          when={art()}
 +          keyed
 +          fallback={
 +            <GeneratedAvatar
