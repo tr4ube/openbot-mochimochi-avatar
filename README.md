@@ -1,5 +1,7 @@
 # openbot-mochimochi-avatar
 
+[![verify](https://github.com/tr4ube/openbot-mochimochi-avatar/actions/workflows/verify.yml/badge.svg)](https://github.com/tr4ube/openbot-mochimochi-avatar/actions/workflows/verify.yml)
+
 A patch that adds **layered character-portrait avatars** ("character art") to
 [OpenBot](https://github.com/nightly-labs/openbot).
 
@@ -54,7 +56,7 @@ The mobile test runs under the root vitest project; `apps/mobile` has no own
 
 | Upstream version | Patch file | Verified |
 |---|---|---|
-| v0.77.0 | `patches/character-art-v0.77.0.patch` | `git apply --check`/`git apply` PASS on a clean `v0.77.0` tree; `typecheck:node`, `typecheck:renderer`, `typecheck:contracts`, `typecheck:i18n` and `typecheck:mobile` PASS; `ipc-channel-coverage` 14/14, `MariAvatar.test` 2/2, `mari-motion.test` 8/8 PASS |
+| v0.77.0 | `patches/character-art-v0.77.0.patch` | CI on ubuntu/windows/macos ([latest run](https://github.com/tr4ube/openbot-mochimochi-avatar/actions/workflows/verify.yml)): clone → `git apply` → `bun install` → `typecheck:node`/`renderer`/`contracts`/`i18n`/`mobile` + patch tests all PASS. Runtime (launching the app, avatar rendering) is not verified. |
 
 ## Adding a character
 
