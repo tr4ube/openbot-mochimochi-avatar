@@ -1,5 +1,192 @@
+diff --git a/apps/mobile/src/features/agents/components/agent-appearance-picker.tsx b/apps/mobile/src/features/agents/components/agent-appearance-picker.tsx
+index ab26585..3427e2d 100644
+--- a/apps/mobile/src/features/agents/components/agent-appearance-picker.tsx
++++ b/apps/mobile/src/features/agents/components/agent-appearance-picker.tsx
+@@ -26,6 +26,7 @@ import { AgentColorGlow } from "@/features/agents/components/agent-color-glow";
+ import { AvatarThumbnail, BloubAvatarPreview } from "@/features/agents/components/bloub-avatar";
+ import { UsageSegments } from "@/features/agents/components/usage-segments";
+ import { type AvatarFace, avatarSeedForStyledFace, randomAvatarFace } from "@/features/agents/model/avatar-candidates";
++import { CHARACTER_CHOICES, isCharacterSeed } from "@/features/agents/model/character-art";
+ import { haptics } from "@/shared/lib/haptics";
+ import { isAndroid } from "@/shared/lib/platform";
+ import { useText } from "@/shared/lib/text";
+@@ -83,6 +84,7 @@ interface AgentAppearancePickerProps extends AgentPhotoProps {
+ const SHAPE_COLUMNS = 5;
+ const EYES_COLUMNS = 8;
+ const COLOR_COLUMNS = 9;
++const CHARACTER_COLUMNS = 3;
+ 
+ export function AgentAppearancePicker({
+   agentId,
+@@ -105,6 +107,7 @@ export function AgentAppearancePicker({
+   const faceKey = agentId ?? firstSeed;
+   const targetColor = avatarHeadColor(seed, hue, color);
+   const style = avatarStyleForSeed(seed);
++  const characterSelected = isCharacterSeed(seed);
+   const { shape, expression } = bloubAvatarProfile(seed, null);
+   const resetSeed = useMemo(() => avatarDefaultSeed(faceKey, style), [faceKey, style]);
+ 
+@@ -164,33 +167,48 @@ export function AgentAppearancePicker({
+       ) : null}
+       {showFaces ? (
+         <>
+-          <AvatarStyleOptions style={style} disabled={disabled} onStyleChange={selectStyle} />
+-          <AvatarShapeOptions
+-            faceKey={faceKey}
+-            style={style}
+-            shape={shape}
+-            expression={expression}
++          <AvatarCharacterOptions
++            serverId={serverId}
++            seed={seed}
++            firstSeed={firstSeed}
+             hue={hue}
+             color={color}
+-            shownColor={targetColor}
+             disabled={disabled}
+-            onSelect={selectFace}
+-            canReset={seed !== resetSeed}
++            onSelect={selectSeed}
++            canReset={characterSelected && seed !== resetSeed}
+             onReset={resetFace}
+-            onShuffle={shuffleFace}
+           />
+-          <AvatarEyesOptions
+-            faceKey={faceKey}
+-            style={style}
+-            shape={shape}
+-            expression={expression}
+-            hue={hue}
+-            color={color}
+-            shownColor={targetColor}
+-            disabled={disabled}
+-            onSelect={selectFace}
+-          />
+-          <AvatarColorOptions hue={hue} color={color} disabled={disabled} onColorChange={onColorChange} />
++          {characterSelected ? null : (
++            <>
++              <AvatarStyleOptions style={style} disabled={disabled} onStyleChange={selectStyle} />
++              <AvatarShapeOptions
++                faceKey={faceKey}
++                style={style}
++                shape={shape}
++                expression={expression}
++                hue={hue}
++                color={color}
++                shownColor={targetColor}
++                disabled={disabled}
++                onSelect={selectFace}
++                canReset={seed !== resetSeed}
++                onReset={resetFace}
++                onShuffle={shuffleFace}
++              />
++              <AvatarEyesOptions
++                faceKey={faceKey}
++                style={style}
++                shape={shape}
++                expression={expression}
++                hue={hue}
++                color={color}
++                shownColor={targetColor}
++                disabled={disabled}
++                onSelect={selectFace}
++              />
++              <AvatarColorOptions hue={hue} color={color} disabled={disabled} onColorChange={onColorChange} />
++            </>
++          )}
+         </>
+       ) : null}
+     </View>
+@@ -322,6 +340,87 @@ export function ChoiceCell({
+   );
+ }
+ 
++function characterChoiceName(seed: string): string {
++  const id = seed.slice("character:".length);
++  const base = id.replace(/-v\d+$/u, "");
++  return base.charAt(0).toUpperCase() + base.slice(1);
++}
++
++const AvatarCharacterOptions = memo(function AvatarCharacterOptions({
++  serverId,
++  seed,
++  firstSeed,
++  hue,
++  color,
++  disabled,
++  onSelect,
++  canReset,
++  onReset,
++}: {
++  serverId?: string | undefined;
++  seed: string;
++  firstSeed: string;
++  hue: AvatarHue | null;
++  color: AvatarColor | null;
++  disabled: boolean;
++  onSelect: (seed: string) => void;
++  canReset: boolean;
++  onReset: () => void;
++}) {
++  const { t } = useText();
++  const choices = useMemo<{ seed: string; name: string }[]>(() => {
++    const base: { seed: string; name: string }[] = CHARACTER_CHOICES.map((choice) => ({
++      seed: choice.seed,
++      name: choice.name,
++    }));
++    for (const keptSeed of [firstSeed, seed]) {
++      if (isCharacterSeed(keptSeed) && !base.some((choice) => choice.seed === keptSeed)) {
++        base.push({ seed: keptSeed, name: characterChoiceName(keptSeed) });
++      }
++    }
++    return base;
++  }, [firstSeed, seed]);
++  return (
++    <AppearanceSection
++      title={t("mobile.agent.appearance.characterHeading")}
++      actions={
++        canReset ? (
++          <HeadingAction
++            label={t("mobile.agent.appearance.resetFace")}
++            disabled={disabled}
++            icon="reset"
++            onPress={onReset}
++          />
++        ) : undefined
++      }
++    >
++      <View
++        className="flex-row flex-wrap"
++        accessibilityRole="radiogroup"
++        accessibilityLabel={t("mobile.agent.appearance.characterHeading")}
++      >
++        {choices.map((choice) => (
++          <ChoiceCell
++            key={choice.seed}
++            columns={CHARACTER_COLUMNS}
++            label={choice.name}
++            checked={seed === choice.seed}
++            disabled={disabled}
++            onPress={() => onSelect(choice.seed)}
++          >
++            <View className="items-center gap-1">
++              <AvatarThumbnail serverId={serverId} seed={choice.seed} hue={hue} color={color} size={40} />
++              <Typography type="body-xs" className="text-center text-foreground" numberOfLines={1}>
++                {choice.name}
++              </Typography>
++            </View>
++          </ChoiceCell>
++        ))}
++      </View>
++    </AppearanceSection>
++  );
++});
++
+ interface FaceOptionsProps {
+   faceKey: string;
+   style: AvatarStyle;
 diff --git a/apps/mobile/src/features/agents/components/bloub-avatar.tsx b/apps/mobile/src/features/agents/components/bloub-avatar.tsx
-index 3efd9bc..8b4cab6 100644
+index 3efd9bc..09b879d 100644
 --- a/apps/mobile/src/features/agents/components/bloub-avatar.tsx
 +++ b/apps/mobile/src/features/agents/components/bloub-avatar.tsx
 @@ -20,7 +20,9 @@ import Animated, {
@@ -12,15 +199,39 @@ index 3efd9bc..8b4cab6 100644
  import { loadedPlushArt, loadPlushArt, plushPixels } from "@/features/agents/model/plush/plush-assets";
  import { type PlushArt, recordPlush } from "@/features/agents/model/plush/plush-draw";
  import { PLUSH_BODY_SCALE } from "@/features/agents/model/plush/plush-felt";
-@@ -166,6 +168,7 @@ const PlushAvatar = memo(function PlushAvatar({
+@@ -124,6 +126,7 @@ export const BloubAvatarPreview = memo(function BloubAvatarPreview(
+       rings={props.rings ? !props.disconnected && avatarMoodPresentation(props.mood ?? "idle").rings : undefined}
+     >
+       <PlushAvatar
++        serverId={props.serverId}
+         seed={props.seed}
+         hue={props.hue}
+         color={props.color ?? null}
+@@ -139,6 +142,7 @@ export const BloubAvatarPreview = memo(function BloubAvatarPreview(
+ });
+ 
+ const PlushAvatar = memo(function PlushAvatar({
++  serverId,
+   seed,
+   hue,
+   color,
+@@ -149,6 +153,7 @@ const PlushAvatar = memo(function PlushAvatar({
+   disconnected = false,
+   transition = "cut",
+ }: {
++  serverId?: string | undefined;
+   seed: string;
+   hue: AvatarHue | null;
+   color: AvatarColor | null;
+@@ -166,6 +171,7 @@ const PlushAvatar = memo(function PlushAvatar({
    const [live, setLive] = useState(animate);
    if (animate && !live) setLive(true);
    const { shown, style: popStyle } = usePlushPop(seed, hue, color, transition === "pop" && facesMove);
-+  const characterArt = useCharacterArt(shown.seed);
++  const characterArt = useCharacterArt(shown.seed, serverId);
    const appearance = useConnectionAppearance(disconnected);
    const [saturated, setSaturated] = useState(!disconnected);
    useAnimatedReaction(
-@@ -197,35 +200,39 @@ const PlushAvatar = memo(function PlushAvatar({
+@@ -197,35 +203,39 @@ const PlushAvatar = memo(function PlushAvatar({
    );
    return (
      <Animated.View pointerEvents="none" style={[{ width: size, height: size }, appearanceStyle]}>
@@ -89,11 +300,19 @@ index 3efd9bc..8b4cab6 100644
      </Animated.View>
    );
  });
-@@ -410,6 +417,8 @@ export const AvatarThumbnail = memo(function AvatarThumbnail({
+@@ -400,6 +410,7 @@ export const BloubAvatarThumbnail = memo(function BloubAvatarThumbnail(
+ });
+ 
+ export const AvatarThumbnail = memo(function AvatarThumbnail({
++  serverId,
+   seed,
+   hue,
+   color = null,
+@@ -410,6 +421,8 @@ export const AvatarThumbnail = memo(function AvatarThumbnail({
    disconnected?: boolean;
    animateColor?: boolean;
  }) {
-+  const characterArt = useCharacterArt(seed);
++  const characterArt = useCharacterArt(seed, serverId);
 +  if (characterArt) return <MariAvatarThumbnail art={characterArt} disconnected={disconnected} size={size} />;
    const drawn = size * PLUSH_BODY_SCALE;
    return (
@@ -420,10 +639,10 @@ index 0000000..7dae690
 +});
 diff --git a/apps/mobile/src/features/agents/model/character-art.ts b/apps/mobile/src/features/agents/model/character-art.ts
 new file mode 100644
-index 0000000..ffd140f
+index 0000000..0d61196
 --- /dev/null
 +++ b/apps/mobile/src/features/agents/model/character-art.ts
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,56 @@
 +import { type CharacterArt, isCharacterArt, isCharacterSeed } from "@openbot/contracts/character-art";
 +import { useQuery } from "@tanstack/react-query";
 +import { useQueryScope } from "@/features/auth/context/mobile-session-context";
@@ -448,6 +667,11 @@ index 0000000..ffd140f
 +  "character:mari-v1": MARI_CHARACTER_ART,
 +  "character:halo-v1": toCharacterArt(haloArt, "halo"),
 +};
++
++export const CHARACTER_CHOICES = [
++  { seed: "character:mari-v1", name: "Mari" },
++  { seed: "character:halo-v1", name: "Halo" },
++] as const;
 +
 +export { isCharacterSeed };
 +
@@ -1408,30 +1632,366 @@ index 16604ea..c55fa51 100644
  ]);
  
  export function optionalRouteCodec(path: string): OptionalRouteCodec | undefined {
+diff --git a/packages/i18n/src/messages/ar/agentSettings.ts b/packages/i18n/src/messages/ar/agentSettings.ts
+index 74e1cef..d706fc4 100644
+--- a/packages/i18n/src/messages/ar/agentSettings.ts
++++ b/packages/i18n/src/messages/ar/agentSettings.ts
+@@ -162,6 +162,7 @@ export const messages = {
+   "agentSettings.avatar.style": "نمط الصورة الرمزية",
+   "agentSettings.avatar.stylePlush": "قطيفة",
+   "agentSettings.avatar.styleFlat": "مسطّح",
++  "agentSettings.avatar.character": "الشخصية",
+   "agentSettings.avatar.shapes": "أشكال الصورة الرمزية",
+   "agentSettings.avatar.shapeOption": "الشكل {number}",
+   "agentSettings.avatar.eyes": "العينان",
+diff --git a/packages/i18n/src/messages/ar/mobile/agent.ts b/packages/i18n/src/messages/ar/mobile/agent.ts
+index 94adb00..1c4909c 100644
+--- a/packages/i18n/src/messages/ar/mobile/agent.ts
++++ b/packages/i18n/src/messages/ar/mobile/agent.ts
+@@ -22,6 +22,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "قطيفة",
+   "mobile.agent.appearance.styleFlat": "مسطّح",
+   "mobile.agent.appearance.styleHeading": "النمط",
++  "mobile.agent.appearance.characterHeading": "الشخصية",
+   "mobile.agent.appearance.shape": "الشكل",
+   "mobile.agent.appearance.shapeOption": "الشكل {number}",
+   "mobile.agent.appearance.eyes": "العينان",
+diff --git a/packages/i18n/src/messages/de/agentSettings.ts b/packages/i18n/src/messages/de/agentSettings.ts
+index 7cc0a23..e4da3b8 100644
+--- a/packages/i18n/src/messages/de/agentSettings.ts
++++ b/packages/i18n/src/messages/de/agentSettings.ts
+@@ -131,6 +131,7 @@ export const messages = {
+   "agentSettings.avatar.style": "Avatar-Stil",
+   "agentSettings.avatar.stylePlush": "Plüsch",
+   "agentSettings.avatar.styleFlat": "Flach",
++  "agentSettings.avatar.character": "Figur",
+   "agentSettings.avatar.shapes": "Avatar-Formen",
+   "agentSettings.avatar.shapeOption": "Form {number}",
+   "agentSettings.avatar.eyes": "Augen",
+diff --git a/packages/i18n/src/messages/de/mobile/agent.ts b/packages/i18n/src/messages/de/mobile/agent.ts
+index 229af77..bcda825 100644
+--- a/packages/i18n/src/messages/de/mobile/agent.ts
++++ b/packages/i18n/src/messages/de/mobile/agent.ts
+@@ -23,6 +23,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "Plüsch",
+   "mobile.agent.appearance.styleFlat": "Flach",
+   "mobile.agent.appearance.styleHeading": "Stil",
++  "mobile.agent.appearance.characterHeading": "Figur",
+   "mobile.agent.appearance.shape": "Form",
+   "mobile.agent.appearance.shapeOption": "Form {number}",
+   "mobile.agent.appearance.eyes": "Augen",
 diff --git a/packages/i18n/src/messages/en/agentSettings.ts b/packages/i18n/src/messages/en/agentSettings.ts
-index b7157cf..b9738fe 100644
+index b7157cf..78ffbcc 100644
 --- a/packages/i18n/src/messages/en/agentSettings.ts
 +++ b/packages/i18n/src/messages/en/agentSettings.ts
 @@ -129,6 +129,7 @@ export const messages = defineMessages("agentSettings", {
    "agentSettings.avatar.style": "Avatar style",
    "agentSettings.avatar.stylePlush": "Plush",
    "agentSettings.avatar.styleFlat": "Flat",
-+  "agentSettings.avatar.selected": "Selected avatar",
++  "agentSettings.avatar.character": "Character",
    "agentSettings.avatar.shapes": "Avatar shapes",
    "agentSettings.avatar.shapeOption": "Shape {number}",
    "agentSettings.avatar.eyes": "Eyes",
+diff --git a/packages/i18n/src/messages/en/mobile/agent.ts b/packages/i18n/src/messages/en/mobile/agent.ts
+index cf29d9a..798bc39 100644
+--- a/packages/i18n/src/messages/en/mobile/agent.ts
++++ b/packages/i18n/src/messages/en/mobile/agent.ts
+@@ -21,6 +21,7 @@ export const messages = defineMessages("mobile.agent", {
+   "mobile.agent.appearance.stylePlush": "Plush",
+   "mobile.agent.appearance.styleFlat": "Flat",
+   "mobile.agent.appearance.styleHeading": "Style",
++  "mobile.agent.appearance.characterHeading": "Character",
+   "mobile.agent.appearance.shape": "Shape",
+   "mobile.agent.appearance.shapeOption": "Shape {number}",
+   "mobile.agent.appearance.eyes": "Eyes",
+diff --git a/packages/i18n/src/messages/es/agentSettings.ts b/packages/i18n/src/messages/es/agentSettings.ts
+index 2d4c848..66c19c3 100644
+--- a/packages/i18n/src/messages/es/agentSettings.ts
++++ b/packages/i18n/src/messages/es/agentSettings.ts
+@@ -130,6 +130,7 @@ export const messages = {
+   "agentSettings.avatar.style": "Estilo del avatar",
+   "agentSettings.avatar.stylePlush": "Peluche",
+   "agentSettings.avatar.styleFlat": "Plano",
++  "agentSettings.avatar.character": "Personaje",
+   "agentSettings.avatar.shapes": "Formas del avatar",
+   "agentSettings.avatar.shapeOption": "Forma {number}",
+   "agentSettings.avatar.eyes": "Ojos",
+diff --git a/packages/i18n/src/messages/es/mobile/agent.ts b/packages/i18n/src/messages/es/mobile/agent.ts
+index 2761100..bbfcd24 100644
+--- a/packages/i18n/src/messages/es/mobile/agent.ts
++++ b/packages/i18n/src/messages/es/mobile/agent.ts
+@@ -23,6 +23,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "Peluche",
+   "mobile.agent.appearance.styleFlat": "Plano",
+   "mobile.agent.appearance.styleHeading": "Estilo",
++  "mobile.agent.appearance.characterHeading": "Personaje",
+   "mobile.agent.appearance.shape": "Forma",
+   "mobile.agent.appearance.shapeOption": "Forma {number}",
+   "mobile.agent.appearance.eyes": "Ojos",
+diff --git a/packages/i18n/src/messages/fr/agentSettings.ts b/packages/i18n/src/messages/fr/agentSettings.ts
+index 73ce16f..2dcef83 100644
+--- a/packages/i18n/src/messages/fr/agentSettings.ts
++++ b/packages/i18n/src/messages/fr/agentSettings.ts
+@@ -133,6 +133,7 @@ export const messages = {
+   "agentSettings.avatar.style": "Style d’avatar",
+   "agentSettings.avatar.stylePlush": "Peluche",
+   "agentSettings.avatar.styleFlat": "Plat",
++  "agentSettings.avatar.character": "Personnage",
+   "agentSettings.avatar.shapes": "Formes de l’avatar",
+   "agentSettings.avatar.shapeOption": "Forme {number}",
+   "agentSettings.avatar.eyes": "Yeux",
+diff --git a/packages/i18n/src/messages/fr/mobile/agent.ts b/packages/i18n/src/messages/fr/mobile/agent.ts
+index 67478bf..5da59bb 100644
+--- a/packages/i18n/src/messages/fr/mobile/agent.ts
++++ b/packages/i18n/src/messages/fr/mobile/agent.ts
+@@ -23,6 +23,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "Peluche",
+   "mobile.agent.appearance.styleFlat": "Plat",
+   "mobile.agent.appearance.styleHeading": "Style",
++  "mobile.agent.appearance.characterHeading": "Personnage",
+   "mobile.agent.appearance.shape": "Forme",
+   "mobile.agent.appearance.shapeOption": "Forme {number}",
+   "mobile.agent.appearance.eyes": "Yeux",
+diff --git a/packages/i18n/src/messages/he/agentSettings.ts b/packages/i18n/src/messages/he/agentSettings.ts
+index 6d3ac76..1d175f6 100644
+--- a/packages/i18n/src/messages/he/agentSettings.ts
++++ b/packages/i18n/src/messages/he/agentSettings.ts
+@@ -137,6 +137,7 @@ export const messages = {
+   "agentSettings.avatar.style": "סגנון אווטאר",
+   "agentSettings.avatar.stylePlush": "פרווה",
+   "agentSettings.avatar.styleFlat": "שטוח",
++  "agentSettings.avatar.character": "דמות",
+   "agentSettings.avatar.shapes": "צורות אווטאר",
+   "agentSettings.avatar.shapeOption": "צורה {number}",
+   "agentSettings.avatar.eyes": "עיניים",
+diff --git a/packages/i18n/src/messages/he/mobile/agent.ts b/packages/i18n/src/messages/he/mobile/agent.ts
+index 4a349ca..ac531dc 100644
+--- a/packages/i18n/src/messages/he/mobile/agent.ts
++++ b/packages/i18n/src/messages/he/mobile/agent.ts
+@@ -22,6 +22,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "קטיפתי",
+   "mobile.agent.appearance.styleFlat": "שטוח",
+   "mobile.agent.appearance.styleHeading": "סגנון",
++  "mobile.agent.appearance.characterHeading": "דמות",
+   "mobile.agent.appearance.shape": "צורה",
+   "mobile.agent.appearance.shapeOption": "צורה {number}",
+   "mobile.agent.appearance.eyes": "עיניים",
+diff --git a/packages/i18n/src/messages/it/agentSettings.ts b/packages/i18n/src/messages/it/agentSettings.ts
+index 1978253..62a6be7 100644
+--- a/packages/i18n/src/messages/it/agentSettings.ts
++++ b/packages/i18n/src/messages/it/agentSettings.ts
+@@ -131,6 +131,7 @@ export const messages = {
+   "agentSettings.avatar.style": "Stile dell'avatar",
+   "agentSettings.avatar.stylePlush": "Peluche",
+   "agentSettings.avatar.styleFlat": "Piatto",
++  "agentSettings.avatar.character": "Personaggio",
+   "agentSettings.avatar.shapes": "Forme dell’avatar",
+   "agentSettings.avatar.shapeOption": "Forma {number}",
+   "agentSettings.avatar.eyes": "Occhi",
+diff --git a/packages/i18n/src/messages/it/mobile/agent.ts b/packages/i18n/src/messages/it/mobile/agent.ts
+index 7e7e728..9758f1c 100644
+--- a/packages/i18n/src/messages/it/mobile/agent.ts
++++ b/packages/i18n/src/messages/it/mobile/agent.ts
+@@ -23,6 +23,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "Peluche",
+   "mobile.agent.appearance.styleFlat": "Piatto",
+   "mobile.agent.appearance.styleHeading": "Stile",
++  "mobile.agent.appearance.characterHeading": "Personaggio",
+   "mobile.agent.appearance.shape": "Forma",
+   "mobile.agent.appearance.shapeOption": "Forma {number}",
+   "mobile.agent.appearance.eyes": "Occhi",
 diff --git a/packages/i18n/src/messages/ja/agentSettings.ts b/packages/i18n/src/messages/ja/agentSettings.ts
-index 8724d08..f17b32d 100644
+index 8724d08..69c4603 100644
 --- a/packages/i18n/src/messages/ja/agentSettings.ts
 +++ b/packages/i18n/src/messages/ja/agentSettings.ts
 @@ -127,6 +127,7 @@ export const messages = {
    "agentSettings.avatar.style": "アバターのスタイル",
    "agentSettings.avatar.stylePlush": "ぬいぐるみ",
    "agentSettings.avatar.styleFlat": "フラット",
-+  "agentSettings.avatar.selected": "選択中のアバター",
++  "agentSettings.avatar.character": "キャラクター",
    "agentSettings.avatar.shapes": "アバターの形",
    "agentSettings.avatar.shapeOption": "形 {number}",
    "agentSettings.avatar.eyes": "目",
+diff --git a/packages/i18n/src/messages/ja/mobile/agent.ts b/packages/i18n/src/messages/ja/mobile/agent.ts
+index 33059bb..db7c9d5 100644
+--- a/packages/i18n/src/messages/ja/mobile/agent.ts
++++ b/packages/i18n/src/messages/ja/mobile/agent.ts
+@@ -23,6 +23,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "ぬいぐるみ",
+   "mobile.agent.appearance.styleFlat": "フラット",
+   "mobile.agent.appearance.styleHeading": "スタイル",
++  "mobile.agent.appearance.characterHeading": "キャラクター",
+   "mobile.agent.appearance.shape": "形",
+   "mobile.agent.appearance.shapeOption": "形 {number}",
+   "mobile.agent.appearance.eyes": "目",
+diff --git a/packages/i18n/src/messages/ko/agentSettings.ts b/packages/i18n/src/messages/ko/agentSettings.ts
+index 0228365..859a598 100644
+--- a/packages/i18n/src/messages/ko/agentSettings.ts
++++ b/packages/i18n/src/messages/ko/agentSettings.ts
+@@ -125,6 +125,7 @@ export const messages = {
+   "agentSettings.avatar.style": "아바타 스타일",
+   "agentSettings.avatar.stylePlush": "봉제 인형",
+   "agentSettings.avatar.styleFlat": "플랫",
++  "agentSettings.avatar.character": "캐릭터",
+   "agentSettings.avatar.shapes": "아바타 모양",
+   "agentSettings.avatar.shapeOption": "모양 {number}",
+   "agentSettings.avatar.eyes": "눈",
+diff --git a/packages/i18n/src/messages/ko/mobile/agent.ts b/packages/i18n/src/messages/ko/mobile/agent.ts
+index 2a96629..8b572a1 100644
+--- a/packages/i18n/src/messages/ko/mobile/agent.ts
++++ b/packages/i18n/src/messages/ko/mobile/agent.ts
+@@ -22,6 +22,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "봉제 인형",
+   "mobile.agent.appearance.styleFlat": "플랫",
+   "mobile.agent.appearance.styleHeading": "스타일",
++  "mobile.agent.appearance.characterHeading": "캐릭터",
+   "mobile.agent.appearance.shape": "모양",
+   "mobile.agent.appearance.shapeOption": "모양 {number}",
+   "mobile.agent.appearance.eyes": "눈",
+diff --git a/packages/i18n/src/messages/nl/agentSettings.ts b/packages/i18n/src/messages/nl/agentSettings.ts
+index 4d55454..03ab339 100644
+--- a/packages/i18n/src/messages/nl/agentSettings.ts
++++ b/packages/i18n/src/messages/nl/agentSettings.ts
+@@ -131,6 +131,7 @@ export const messages = {
+   "agentSettings.avatar.style": "Avatarstijl",
+   "agentSettings.avatar.stylePlush": "Pluche",
+   "agentSettings.avatar.styleFlat": "Plat",
++  "agentSettings.avatar.character": "Karakter",
+   "agentSettings.avatar.shapes": "Avatarvormen",
+   "agentSettings.avatar.shapeOption": "Vorm {number}",
+   "agentSettings.avatar.eyes": "Ogen",
+diff --git a/packages/i18n/src/messages/nl/mobile/agent.ts b/packages/i18n/src/messages/nl/mobile/agent.ts
+index b5bb409..d2c61a8 100644
+--- a/packages/i18n/src/messages/nl/mobile/agent.ts
++++ b/packages/i18n/src/messages/nl/mobile/agent.ts
+@@ -23,6 +23,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "Pluche",
+   "mobile.agent.appearance.styleFlat": "Plat",
+   "mobile.agent.appearance.styleHeading": "Stijl",
++  "mobile.agent.appearance.characterHeading": "Karakter",
+   "mobile.agent.appearance.shape": "Vorm",
+   "mobile.agent.appearance.shapeOption": "Vorm {number}",
+   "mobile.agent.appearance.eyes": "Ogen",
+diff --git a/packages/i18n/src/messages/pl/agentSettings.ts b/packages/i18n/src/messages/pl/agentSettings.ts
+index 304e04e..92e63f6 100644
+--- a/packages/i18n/src/messages/pl/agentSettings.ts
++++ b/packages/i18n/src/messages/pl/agentSettings.ts
+@@ -151,6 +151,7 @@ export const messages = {
+   "agentSettings.avatar.style": "Styl awatara",
+   "agentSettings.avatar.stylePlush": "Pluszowy",
+   "agentSettings.avatar.styleFlat": "Płaski",
++  "agentSettings.avatar.character": "Postać",
+   "agentSettings.avatar.shapes": "Kształty awatara",
+   "agentSettings.avatar.shapeOption": "Kształt {number}",
+   "agentSettings.avatar.eyes": "Oczy",
+diff --git a/packages/i18n/src/messages/pl/mobile/agent.ts b/packages/i18n/src/messages/pl/mobile/agent.ts
+index ffb2b71..2fc5c3c 100644
+--- a/packages/i18n/src/messages/pl/mobile/agent.ts
++++ b/packages/i18n/src/messages/pl/mobile/agent.ts
+@@ -23,6 +23,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "Pluszowy",
+   "mobile.agent.appearance.styleFlat": "Płaski",
+   "mobile.agent.appearance.styleHeading": "Styl",
++  "mobile.agent.appearance.characterHeading": "Postać",
+   "mobile.agent.appearance.shape": "Kształt",
+   "mobile.agent.appearance.shapeOption": "Kształt {number}",
+   "mobile.agent.appearance.eyes": "Oczy",
+diff --git a/packages/i18n/src/messages/pt/agentSettings.ts b/packages/i18n/src/messages/pt/agentSettings.ts
+index 6524801..a635a0e 100644
+--- a/packages/i18n/src/messages/pt/agentSettings.ts
++++ b/packages/i18n/src/messages/pt/agentSettings.ts
+@@ -130,6 +130,7 @@ export const messages = {
+   "agentSettings.avatar.style": "Estilo do avatar",
+   "agentSettings.avatar.stylePlush": "Pelúcia",
+   "agentSettings.avatar.styleFlat": "Plano",
++  "agentSettings.avatar.character": "Personagem",
+   "agentSettings.avatar.shapes": "Formas do avatar",
+   "agentSettings.avatar.shapeOption": "Forma {number}",
+   "agentSettings.avatar.eyes": "Olhos",
+diff --git a/packages/i18n/src/messages/pt/mobile/agent.ts b/packages/i18n/src/messages/pt/mobile/agent.ts
+index 7423fba..22aade7 100644
+--- a/packages/i18n/src/messages/pt/mobile/agent.ts
++++ b/packages/i18n/src/messages/pt/mobile/agent.ts
+@@ -22,6 +22,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "Pelúcia",
+   "mobile.agent.appearance.styleFlat": "Plano",
+   "mobile.agent.appearance.styleHeading": "Estilo",
++  "mobile.agent.appearance.characterHeading": "Personagem",
+   "mobile.agent.appearance.shape": "Forma",
+   "mobile.agent.appearance.shapeOption": "Forma {number}",
+   "mobile.agent.appearance.eyes": "Olhos",
+diff --git a/packages/i18n/src/messages/ru/agentSettings.ts b/packages/i18n/src/messages/ru/agentSettings.ts
+index dda4c3b..2c7a8ce 100644
+--- a/packages/i18n/src/messages/ru/agentSettings.ts
++++ b/packages/i18n/src/messages/ru/agentSettings.ts
+@@ -154,6 +154,7 @@ export const messages = {
+   "agentSettings.avatar.style": "Стиль аватара",
+   "agentSettings.avatar.stylePlush": "Плюш",
+   "agentSettings.avatar.styleFlat": "Плоский",
++  "agentSettings.avatar.character": "Персонаж",
+   "agentSettings.avatar.shapes": "Формы аватара",
+   "agentSettings.avatar.shapeOption": "Форма {number}",
+   "agentSettings.avatar.eyes": "Глаза",
+diff --git a/packages/i18n/src/messages/ru/mobile/agent.ts b/packages/i18n/src/messages/ru/mobile/agent.ts
+index 98ee52a..ceafe59 100644
+--- a/packages/i18n/src/messages/ru/mobile/agent.ts
++++ b/packages/i18n/src/messages/ru/mobile/agent.ts
+@@ -23,6 +23,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "Плюш",
+   "mobile.agent.appearance.styleFlat": "Плоский",
+   "mobile.agent.appearance.styleHeading": "Стиль",
++  "mobile.agent.appearance.characterHeading": "Персонаж",
+   "mobile.agent.appearance.shape": "Форма",
+   "mobile.agent.appearance.shapeOption": "Форма {number}",
+   "mobile.agent.appearance.eyes": "Глаза",
+diff --git a/packages/i18n/src/messages/tr/agentSettings.ts b/packages/i18n/src/messages/tr/agentSettings.ts
+index 9ce4f11..d30be56 100644
+--- a/packages/i18n/src/messages/tr/agentSettings.ts
++++ b/packages/i18n/src/messages/tr/agentSettings.ts
+@@ -131,6 +131,7 @@ export const messages = {
+   "agentSettings.avatar.style": "Avatar stili",
+   "agentSettings.avatar.stylePlush": "Peluş",
+   "agentSettings.avatar.styleFlat": "Düz",
++  "agentSettings.avatar.character": "Karakter",
+   "agentSettings.avatar.shapes": "Avatar şekilleri",
+   "agentSettings.avatar.shapeOption": "Şekil {number}",
+   "agentSettings.avatar.eyes": "Gözler",
+diff --git a/packages/i18n/src/messages/tr/mobile/agent.ts b/packages/i18n/src/messages/tr/mobile/agent.ts
+index ecd1a98..4f55e2d 100644
+--- a/packages/i18n/src/messages/tr/mobile/agent.ts
++++ b/packages/i18n/src/messages/tr/mobile/agent.ts
+@@ -22,6 +22,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "Peluş",
+   "mobile.agent.appearance.styleFlat": "Düz",
+   "mobile.agent.appearance.styleHeading": "Stil",
++  "mobile.agent.appearance.characterHeading": "Karakter",
+   "mobile.agent.appearance.shape": "Şekil",
+   "mobile.agent.appearance.shapeOption": "Şekil {number}",
+   "mobile.agent.appearance.eyes": "Gözler",
+diff --git a/packages/i18n/src/messages/zh/agentSettings.ts b/packages/i18n/src/messages/zh/agentSettings.ts
+index 0d561c4..ed0633e 100644
+--- a/packages/i18n/src/messages/zh/agentSettings.ts
++++ b/packages/i18n/src/messages/zh/agentSettings.ts
+@@ -123,6 +123,7 @@ export const messages = {
+   "agentSettings.avatar.style": "头像风格",
+   "agentSettings.avatar.stylePlush": "毛绒",
+   "agentSettings.avatar.styleFlat": "扁平",
++  "agentSettings.avatar.character": "角色",
+   "agentSettings.avatar.shapes": "头像形状",
+   "agentSettings.avatar.shapeOption": "形状 {number}",
+   "agentSettings.avatar.eyes": "眼睛",
+diff --git a/packages/i18n/src/messages/zh/mobile/agent.ts b/packages/i18n/src/messages/zh/mobile/agent.ts
+index 5832667..2f5be15 100644
+--- a/packages/i18n/src/messages/zh/mobile/agent.ts
++++ b/packages/i18n/src/messages/zh/mobile/agent.ts
+@@ -22,6 +22,7 @@ export const messages = {
+   "mobile.agent.appearance.stylePlush": "毛绒",
+   "mobile.agent.appearance.styleFlat": "扁平",
+   "mobile.agent.appearance.styleHeading": "风格",
++  "mobile.agent.appearance.characterHeading": "角色",
+   "mobile.agent.appearance.shape": "形状",
+   "mobile.agent.appearance.shapeOption": "形状 {number}",
+   "mobile.agent.appearance.eyes": "眼睛",
 diff --git a/packages/ui/package.json b/packages/ui/package.json
 index 15ba7d6..0488212 100644
 --- a/packages/ui/package.json
@@ -2307,10 +2867,18 @@ index 0000000..4d3d622
 +export const MARI_AVATAR_SEED = "character:mari-v1";
 +export const HALO_AVATAR_SEED = "character:halo-v1";
 diff --git a/packages/ui/src/features/conversation/AgentSettingsPanel.tsx b/packages/ui/src/features/conversation/AgentSettingsPanel.tsx
-index 4e76c9b..a63b583 100644
+index 4e76c9b..16230f4 100644
 --- a/packages/ui/src/features/conversation/AgentSettingsPanel.tsx
 +++ b/packages/ui/src/features/conversation/AgentSettingsPanel.tsx
-@@ -119,6 +119,7 @@ import {
+@@ -5,6 +5,7 @@ import {
+   agentSteersTurns,
+   foreignProvider,
+ } from "@openbot/contracts/agent-providers";
++import { isCharacterSeed } from "@openbot/contracts/character-art";
+ import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
+ import {
+   type AgentBackupModels,
+@@ -119,6 +120,7 @@ import {
  } from "solid-js";
  import { useText } from "../../text";
  import { avatarColorChoiceLabel } from "../agents/avatar-hue-label";
@@ -2318,35 +2886,349 @@ index 4e76c9b..a63b583 100644
  import { SERVER_NOTIFICATION_LEVEL_LABELS } from "../servers/ServerActionItems";
  import { AgentChatColorRow } from "../settings/ChatColorSetting";
  import { AgentDeleteHistoryDialog } from "./AgentDeleteHistoryDialog";
-@@ -1202,6 +1203,28 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
+@@ -411,6 +413,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
+   const knownProvider = () => (agentForeignProvider() === undefined ? draft.runtime.provider : undefined);
+   const avatarFace = createMemo(() => bloubAvatarProfile(draft.avatar.seed, null));
+   const avatarStyle = createMemo(() => avatarStyleForSeed(draft.avatar.seed));
++  const characterAvatarSelected = createMemo(() => isCharacterSeed(draft.avatar.seed));
+   const avatarResetSeed = createMemo(() => avatarDefaultSeed(props.agent.id, avatarStyle()));
+   const avatarColorSelected = (choice: AvatarColorChoice) =>
+     isAvatarColorChoice(choice, draft.avatar.hue, draft.avatar.color);
+@@ -1099,156 +1102,205 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
+                     </Button>
+                     <div class="avatar-editor-divider" />
+                     <div class="avatar-editor-heading">
+-                      <span>{t("agentSettings.avatar.shape")}</span>
+-                      <div class="avatar-editor-heading-end">
+-                        <SlidingTabs.Root
+-                          value={avatarStyle()}
+-                          onChange={(value) => {
+-                            const style = AVATAR_STYLES.find((option) => option === value);
+-                            if (style && style !== avatarStyle()) void selectAvatarFace({ style });
+-                          }}
+-                        >
+-                          <SlidingTabs.List class="avatar-style-tabs" aria-label={t("agentSettings.avatar.style")}>
+-                            <SlidingTabs.Trigger value="plush">
+-                              {t("agentSettings.avatar.stylePlush")}
+-                            </SlidingTabs.Trigger>
+-                            <SlidingTabs.Trigger value="flat">
+-                              {t("agentSettings.avatar.styleFlat")}
+-                            </SlidingTabs.Trigger>
+-                          </SlidingTabs.List>
+-                        </SlidingTabs.Root>
++                      <span>{t("agentSettings.avatar.character")}</span>
++                      <Show when={characterAvatarSelected()}>
+                         <div class="avatar-editor-actions">
+-                          <Show when={draft.avatar.seed !== avatarResetSeed()}>
+-                            <IconButton
+-                              variant="outline"
+-                              type="button"
+-                              label={t("agentSettings.avatar.resetToId")}
+-                              onClick={() =>
+-                                void selectGeneratedAvatar(
+-                                  avatarResetSeed(),
+-                                  bloubAvatarProfile(props.agent.id, null).color,
+-                                )
+-                              }
+-                            >
+-                              <RotateCcw aria-hidden="true" />
+-                            </IconButton>
+-                          </Show>
+                           <IconButton
+                             variant="outline"
+                             type="button"
+-                            label={t("agentSettings.avatar.shuffle")}
+-                            onClick={() => void selectAvatarFace(randomAvatarFace(avatarFace()))}
++                            label={t("agentSettings.avatar.resetToId")}
++                            onClick={() =>
++                              void selectGeneratedAvatar(
++                                avatarResetSeed(),
++                                bloubAvatarProfile(props.agent.id, null).color,
++                              )
++                            }
+                           >
+-                            <Shuffle aria-hidden="true" />
++                            <RotateCcw aria-hidden="true" />
+                           </IconButton>
+                         </div>
+-                      </div>
++                      </Show>
+                     </div>
+-                    <fieldset class="avatar-face-grid avatar-shape-grid" aria-label={t("agentSettings.avatar.shapes")}>
+-                      <For each={SUPPORTED_AVATAR_SILHOUETTES}>
+-                        {(shape, index) => (
++                    <fieldset class="avatar-character-grid" aria-label={t("agentSettings.avatar.character")}>
++                      <For each={characterChoices()} keyed={(choice) => choice.seed}>
++                        {(choice) => (
+                           <Button
+                             variant="ghost"
+                             type="button"
+                             class={[
+-                              "avatar-face-choice",
+-                              { "avatar-choice-selected": !avatarUrl() && avatarFace().shape === shape },
++                              "avatar-face-choice avatar-character-choice",
++                              { "avatar-choice-selected": !avatarUrl() && draft.avatar.seed === choice().seed },
+                             ]}
+-                            aria-label={t("agentSettings.avatar.shapeOption", { number: index() + 1 })}
+-                            aria-pressed={!avatarUrl() && avatarFace().shape === shape ? "true" : "false"}
++                            aria-label={choice().name}
++                            aria-pressed={!avatarUrl() && draft.avatar.seed === choice().seed ? "true" : "false"}
+                             data-cuelume-tap="select"
+-                            onClick={() => void selectAvatarFace({ shape })}
++                            onClick={() => void selectGeneratedAvatar(choice().seed, avatarFace().color)}
+                           >
+-                            <AgentAvatar
+-                              seed={draft.avatar.seed}
+-                              hue={draft.avatar.hue}
+-                              color={draft.avatar.color}
+-                              shape={shape}
+-                              transition="cut"
+-                            />
++                            <AgentAvatar seed={choice().seed} hue={draft.avatar.hue} />
++                            <span class="avatar-character-name">{choice().name}</span>
                            </Button>
                          )}
                        </For>
-+                      <For each={characterChoices()} keyed={(choice) => choice.seed}>
-+                        {(choice) => (
-+                          <Button
-+                            variant="ghost"
-+                            type="button"
-+                            class={[
-+                              "avatar-face-choice",
-+                              { "avatar-choice-selected": !avatarUrl() && draft.avatar.seed === choice().seed },
-+                            ]}
-+                            aria-label={
-+                              !avatarUrl() && draft.avatar.seed === choice().seed
-+                                ? t("agentSettings.avatar.selected")
-+                                : choice().name
-+                            }
-+                            aria-pressed={!avatarUrl() && draft.avatar.seed === choice().seed ? "true" : "false"}
-+                            data-cuelume-tap="select"
-+                            onClick={() => void selectGeneratedAvatar(choice().seed, avatarFace().color)}
-+                          >
-+                            <AgentAvatar seed={choice().seed} hue={draft.avatar.hue} />
-+                          </Button>
-+                        )}
-+                      </For>
                      </fieldset>
-                     <div class="avatar-editor-divider" />
-                     <div class="avatar-editor-heading">
+-                    <div class="avatar-editor-divider" />
+-                    <div class="avatar-editor-heading">
+-                      <span>{t("agentSettings.avatar.eyes")}</span>
+-                    </div>
+-                    <fieldset
+-                      class="avatar-face-grid avatar-eyes-grid"
+-                      aria-label={t("agentSettings.avatar.eyesLabel")}
+-                    >
+-                      <For each={AVATAR_EXPRESSIONS}>
+-                        {(expression, index) => (
+-                          <Button
+-                            variant="ghost"
+-                            type="button"
+-                            class={[
+-                              "avatar-face-choice",
+-                              { "avatar-choice-selected": !avatarUrl() && avatarFace().expression === expression },
+-                            ]}
+-                            aria-label={t("agentSettings.avatar.eyesOption", { number: index() + 1 })}
+-                            aria-pressed={!avatarUrl() && avatarFace().expression === expression ? "true" : "false"}
+-                            data-cuelume-tap="select"
+-                            onClick={() => void selectAvatarFace({ expression })}
+-                          >
+-                            <AgentAvatar
+-                              seed={draft.avatar.seed}
+-                              hue={draft.avatar.hue}
+-                              color={draft.avatar.color}
+-                              expression={expression}
+-                              transition="cut"
+-                            />
+-                          </Button>
+-                        )}
+-                      </For>
+-                    </fieldset>
+-                    <div class="avatar-editor-divider" />
+-                    <div class="avatar-editor-heading">
+-                      <span>{t("agentSettings.avatar.color")}</span>
+-                    </div>
+-                    <fieldset class="avatar-color-grid" aria-label={t("agentSettings.avatar.colorLabel")}>
+-                      <Button
+-                        variant="ghost"
+-                        type="button"
+-                        class={["avatar-color-choice", { "avatar-choice-selected": automaticColorSelected() }]}
+-                        aria-label={t("agentSettings.avatar.autoColor")}
+-                        aria-pressed={automaticColorSelected() ? "true" : "false"}
+-                        data-cuelume-tap="select"
+-                        onClick={() => {
+-                          setDraft((state) => {
+-                            state.avatar.hue = null;
+-                            state.avatar.color = null;
+-                          });
+-                          void saveAgentPatch({ avatarHue: null, avatarColor: null });
+-                        }}
+-                      >
+-                        <span class="avatar-color-swatch avatar-color-swatch-auto">
+-                          {t("agentSettings.avatar.autoInitial")}
+-                        </span>
+-                      </Button>
+-                      <For each={AVATAR_COLOR_CHOICES}>
+-                        {(option) => (
+-                          <Button
+-                            variant="ghost"
+-                            type="button"
+-                            class={["avatar-color-choice", { "avatar-choice-selected": avatarColorSelected(option) }]}
+-                            aria-label={t("agentSettings.avatar.hueColor", { hue: t(avatarColorChoiceLabel(option)) })}
+-                            aria-pressed={avatarColorSelected(option) ? "true" : "false"}
+-                            data-cuelume-tap="select"
+-                            onClick={() => {
+-                              setDraft((state) => {
+-                                state.avatar.hue = option.hue;
+-                                state.avatar.color = option.color;
+-                              });
+-                              void saveAgentPatch({ avatarHue: option.hue, avatarColor: option.color });
++                    <Show when={!characterAvatarSelected()}>
++                      <div class="avatar-editor-divider" />
++                      <div class="avatar-editor-heading">
++                        <span>{t("agentSettings.avatar.shape")}</span>
++                        <div class="avatar-editor-heading-end">
++                          <SlidingTabs.Root
++                            value={avatarStyle()}
++                            onChange={(value) => {
++                              const style = AVATAR_STYLES.find((option) => option === value);
++                              if (style && style !== avatarStyle()) void selectAvatarFace({ style });
+                             }}
+                           >
+-                            <span class="avatar-color-swatch" style={{ background: option.swatch }} />
+-                          </Button>
+-                        )}
+-                      </For>
+-                    </fieldset>
++                            <SlidingTabs.List class="avatar-style-tabs" aria-label={t("agentSettings.avatar.style")}>
++                              <SlidingTabs.Trigger value="plush">
++                                {t("agentSettings.avatar.stylePlush")}
++                              </SlidingTabs.Trigger>
++                              <SlidingTabs.Trigger value="flat">
++                                {t("agentSettings.avatar.styleFlat")}
++                              </SlidingTabs.Trigger>
++                            </SlidingTabs.List>
++                          </SlidingTabs.Root>
++                          <div class="avatar-editor-actions">
++                            <Show when={draft.avatar.seed !== avatarResetSeed()}>
++                              <IconButton
++                                variant="outline"
++                                type="button"
++                                label={t("agentSettings.avatar.resetToId")}
++                                onClick={() =>
++                                  void selectGeneratedAvatar(
++                                    avatarResetSeed(),
++                                    bloubAvatarProfile(props.agent.id, null).color,
++                                  )
++                                }
++                              >
++                                <RotateCcw aria-hidden="true" />
++                              </IconButton>
++                            </Show>
++                            <IconButton
++                              variant="outline"
++                              type="button"
++                              label={t("agentSettings.avatar.shuffle")}
++                              onClick={() => void selectAvatarFace(randomAvatarFace(avatarFace()))}
++                            >
++                              <Shuffle aria-hidden="true" />
++                            </IconButton>
++                          </div>
++                        </div>
++                      </div>
++                      <fieldset
++                        class="avatar-face-grid avatar-shape-grid"
++                        aria-label={t("agentSettings.avatar.shapes")}
++                      >
++                        <For each={SUPPORTED_AVATAR_SILHOUETTES}>
++                          {(shape, index) => (
++                            <Button
++                              variant="ghost"
++                              type="button"
++                              class={[
++                                "avatar-face-choice",
++                                { "avatar-choice-selected": !avatarUrl() && avatarFace().shape === shape },
++                              ]}
++                              aria-label={t("agentSettings.avatar.shapeOption", { number: index() + 1 })}
++                              aria-pressed={!avatarUrl() && avatarFace().shape === shape ? "true" : "false"}
++                              data-cuelume-tap="select"
++                              onClick={() => void selectAvatarFace({ shape })}
++                            >
++                              <AgentAvatar
++                                seed={draft.avatar.seed}
++                                hue={draft.avatar.hue}
++                                color={draft.avatar.color}
++                                shape={shape}
++                                transition="cut"
++                              />
++                            </Button>
++                          )}
++                        </For>
++                      </fieldset>
++                      <div class="avatar-editor-divider" />
++                      <div class="avatar-editor-heading">
++                        <span>{t("agentSettings.avatar.eyes")}</span>
++                      </div>
++                      <fieldset
++                        class="avatar-face-grid avatar-eyes-grid"
++                        aria-label={t("agentSettings.avatar.eyesLabel")}
++                      >
++                        <For each={AVATAR_EXPRESSIONS}>
++                          {(expression, index) => (
++                            <Button
++                              variant="ghost"
++                              type="button"
++                              class={[
++                                "avatar-face-choice",
++                                { "avatar-choice-selected": !avatarUrl() && avatarFace().expression === expression },
++                              ]}
++                              aria-label={t("agentSettings.avatar.eyesOption", { number: index() + 1 })}
++                              aria-pressed={!avatarUrl() && avatarFace().expression === expression ? "true" : "false"}
++                              data-cuelume-tap="select"
++                              onClick={() => void selectAvatarFace({ expression })}
++                            >
++                              <AgentAvatar
++                                seed={draft.avatar.seed}
++                                hue={draft.avatar.hue}
++                                color={draft.avatar.color}
++                                expression={expression}
++                                transition="cut"
++                              />
++                            </Button>
++                          )}
++                        </For>
++                      </fieldset>
++                      <div class="avatar-editor-divider" />
++                      <div class="avatar-editor-heading">
++                        <span>{t("agentSettings.avatar.color")}</span>
++                      </div>
++                      <fieldset class="avatar-color-grid" aria-label={t("agentSettings.avatar.colorLabel")}>
++                        <Button
++                          variant="ghost"
++                          type="button"
++                          class={["avatar-color-choice", { "avatar-choice-selected": automaticColorSelected() }]}
++                          aria-label={t("agentSettings.avatar.autoColor")}
++                          aria-pressed={automaticColorSelected() ? "true" : "false"}
++                          data-cuelume-tap="select"
++                          onClick={() => {
++                            setDraft((state) => {
++                              state.avatar.hue = null;
++                              state.avatar.color = null;
++                            });
++                            void saveAgentPatch({ avatarHue: null, avatarColor: null });
++                          }}
++                        >
++                          <span class="avatar-color-swatch avatar-color-swatch-auto">
++                            {t("agentSettings.avatar.autoInitial")}
++                          </span>
++                        </Button>
++                        <For each={AVATAR_COLOR_CHOICES}>
++                          {(option) => (
++                            <Button
++                              variant="ghost"
++                              type="button"
++                              class={["avatar-color-choice", { "avatar-choice-selected": avatarColorSelected(option) }]}
++                              aria-label={t("agentSettings.avatar.hueColor", {
++                                hue: t(avatarColorChoiceLabel(option)),
++                              })}
++                              aria-pressed={avatarColorSelected(option) ? "true" : "false"}
++                              data-cuelume-tap="select"
++                              onClick={() => {
++                                setDraft((state) => {
++                                  state.avatar.hue = option.hue;
++                                  state.avatar.color = option.color;
++                                });
++                                void saveAgentPatch({ avatarHue: option.hue, avatarColor: option.color });
++                              }}
++                            >
++                              <span class="avatar-color-swatch" style={{ background: option.swatch }} />
++                            </Button>
++                          )}
++                        </For>
++                      </fieldset>
++                    </Show>
+                   </Popover.Content>
+                 </Popover.Root>
+               </div>
 diff --git a/src/main/character-art-store.ts b/src/main/character-art-store.ts
 new file mode 100644
 index 0000000..0adda21
@@ -4533,6 +5415,79 @@ Rl|+f%5)D@?%8ce!006l0a+Ux9
 literal 0
 HcmV?d00001
 
+diff --git a/src/renderer/src/features/conversation/AgentSettingsPanel.avatar.test.tsx b/src/renderer/src/features/conversation/AgentSettingsPanel.avatar.test.tsx
+new file mode 100644
+index 0000000..e3f79ed
+--- /dev/null
++++ b/src/renderer/src/features/conversation/AgentSettingsPanel.avatar.test.tsx
+@@ -0,0 +1,67 @@
++import AgentSettingsPanel from "@openbot/ui/features/conversation/AgentSettingsPanel";
++import { fireEvent, render, screen } from "@solidjs/testing-library";
++import { describe, expect, it, vi } from "vitest";
++import { STORY_AGENT, STORY_AGENT_STATUS, STORY_MODELS, storyRuntimeSettings } from "../../preview/fixtures";
++
++class TestMediaQueryList extends EventTarget implements MediaQueryList {
++  readonly matches = false;
++  readonly media: string;
++  onchange: MediaQueryList["onchange"] = null;
++
++  constructor(media: string) {
++    super();
++    this.media = media;
++  }
++
++  addListener(_listener: (event: MediaQueryListEvent) => void): void {}
++  removeListener(_listener: (event: MediaQueryListEvent) => void): void {}
++}
++
++Object.defineProperty(window, "matchMedia", {
++  configurable: true,
++  value: (query: string) => new TestMediaQueryList(query),
++});
++
++function renderPanel(avatarSeed: string) {
++  const agent = { ...STORY_AGENT, avatarSeed };
++  render(() => (
++    <AgentSettingsPanel
++      agent={agent}
++      runtimeSettings={storyRuntimeSettings(agent)}
++      agentStatus={STORY_AGENT_STATUS}
++      modelOptions={STORY_MODELS}
++      working={false}
++      width={360}
++      maxWidth={() => 640}
++      onClose={vi.fn()}
++      onResize={vi.fn()}
++      onResizeEnd={vi.fn()}
++      onUpdateAgent={vi.fn(async () => undefined)}
++      onUpdateRuntimeSettings={vi.fn(async () => true)}
++      onSetAgentAvatar={vi.fn(async () => undefined)}
++    />
++  ));
++  fireEvent.click(screen.getByLabelText("Edit agent avatar"));
++}
++
++describe("agent avatar editor sections", () => {
++  it("shows only the character choices for a character seed", async () => {
++    renderPanel("character:mari-v1");
++
++    expect(await screen.findByText("Character")).toBeTruthy();
++    expect(screen.queryByText("Shape")).toBeNull();
++    expect(screen.queryByText("Eyes")).toBeNull();
++    expect(screen.queryByText("Color")).toBeNull();
++    expect(screen.getByLabelText("Mari")).toBeTruthy();
++    expect(screen.getByLabelText("Halo")).toBeTruthy();
++  });
++
++  it("keeps the generated avatar sections for a generated seed", async () => {
++    renderPanel("chief");
++
++    expect(await screen.findByText("Character")).toBeTruthy();
++    expect(screen.getByText("Shape")).toBeTruthy();
++    expect(screen.getByText("Eyes")).toBeTruthy();
++    expect(screen.getByText("Color")).toBeTruthy();
++  });
++});
 diff --git a/src/renderer/src/features/sidebar/MariAvatar.test.tsx b/src/renderer/src/features/sidebar/MariAvatar.test.tsx
 new file mode 100644
 index 0000000..fd022a8
@@ -4618,3 +5573,49 @@ index c527f54..687fd69 100644
      backgroundProcesses: {
        list: async () => clone(backgroundProcesses),
        stop: async (id) => {
+diff --git a/src/renderer/src/styles/app-shell.css b/src/renderer/src/styles/app-shell.css
+index 9f8c33f..a39058d 100644
+--- a/src/renderer/src/styles/app-shell.css
++++ b/src/renderer/src/styles/app-shell.css
+@@ -2801,6 +2801,16 @@ textarea {
+   padding: 4px 10px 12px;
+ }
+ 
++.avatar-character-grid {
++  display: grid;
++  min-width: 0;
++  margin: 0;
++  border: 0;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  gap: 4px;
++  padding: 4px 10px 12px;
++}
++
+ .avatar-shape-grid {
+   grid-template-columns: repeat(5, minmax(0, 1fr));
+ }
+@@ -2823,6 +2833,24 @@ textarea {
+   height: 44px;
+ }
+ 
++.avatar-character-choice {
++  height: 48px;
++  padding-inline: 7px;
++  grid-template-columns: 30px minmax(0, 1fr);
++  justify-items: start;
++  gap: 8px;
++}
++
++.avatar-character-name {
++  min-width: 0;
++  overflow: hidden;
++  color: var(--openbot-text-primary);
++  font-size: var(--openbot-text-sm);
++  font-weight: 540;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
+ .avatar-face-choice:hover,
+ .avatar-color-choice:hover {
+   background: var(--openbot-hover);

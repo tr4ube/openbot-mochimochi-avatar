@@ -52,7 +52,7 @@ jobs:
       - name: Patch tests
         working-directory: openbot
         timeout-minutes: 20
-        run: bun run test:desktop -- src/main/ipc-channel-coverage.test.ts src/renderer/src/features/sidebar/MariAvatar.test.tsx apps/mobile/src/features/agents/model/mari-motion.test.ts
+        run: bun run test:desktop -- src/main/ipc-channel-coverage.test.ts src/renderer/src/features/sidebar/MariAvatar.test.tsx src/renderer/src/features/conversation/AgentSettingsPanel.avatar.test.tsx apps/mobile/src/features/agents/model/mari-motion.test.ts
 
   ios:
     runs-on: macos-latest

@@ -12,7 +12,9 @@ animation. Characters live as plain JSON files in
 `<userData>/characters/<id>.json`, so adding a new character needs no rebuild.
 The patch covers the desktop renderer (SolidJS) and the mobile app
 (`apps/mobile`, plush avatar and thumbnails), including the joined-server path
-over the Team API.
+over the Team API. In the avatar editor, a character seed shows the character
+picker without the generated-avatar shape, eyes, and color sections; a generated
+seed keeps those sections.
 
 ## Apply
 
@@ -41,8 +43,9 @@ tells you first. See "Version policy" below.
 
 ```sh
 bun run test:desktop -- src/main/ipc-channel-coverage.test.ts \
-  src/renderer/src/features/sidebar/MariAvatar.test.tsx
-bun run test:desktop -- apps/mobile/src/features/agents/model/mari-motion.test.ts
+  src/renderer/src/features/sidebar/MariAvatar.test.tsx \
+  src/renderer/src/features/conversation/AgentSettingsPanel.avatar.test.tsx \
+  apps/mobile/src/features/agents/model/mari-motion.test.ts
 ```
 
 The mobile test runs under the root vitest project; `apps/mobile` has no own
