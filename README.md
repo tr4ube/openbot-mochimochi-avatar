@@ -53,13 +53,16 @@ The mobile test runs under the root vitest project; `apps/mobile` has no own
 
 ## Version policy
 
-- `patches/character-art-v<version>.patch` — one patch per upstream release.
-- `v0.77.0` is the current pinned target; newer OpenBot releases get a ported
-  patch file alongside, and the version table below tracks verification.
+- `patches/character-art-v<version>.patch` — one public patch per upstream release.
+- `v0.77.0` is the current pinned public target; newer OpenBot releases get a ported patch file alongside when the port is ready to publish.
+- Ports are carried forward release by release. When upstream absorbs equivalent functionality, the corresponding private patch or hunks are dropped instead of being carried forward.
 
-| Upstream version | Patch file | Verified |
+## Patch status
+
+| Patch | Upstream version | Status |
 |---|---|---|
-| v0.77.0 | `patches/character-art-v0.77.0.patch` | CI on ubuntu/windows/macos ([latest run](https://github.com/tr4ube/openbot-mochimochi-avatar/actions/workflows/verify.yml)): clone → `git apply` → `bun install` → `typecheck:node`/`renderer`/`contracts`/`i18n`/`mobile` + patch tests all PASS. Runtime (launching the app, avatar rendering) is not verified. |
+| `patches/character-art-v0.77.0.patch` | v0.77.0 | Published here. CI on ubuntu/windows/macos ([latest run](https://github.com/tr4ube/openbot-mochimochi-avatar/actions/workflows/verify.yml)): clone → `git apply` → `bun install` → `typecheck:node`/`renderer`/`contracts`/`i18n`/`mobile` + patch tests all PASS. Runtime (launching the app, avatar rendering) is not verified by CI. |
+| v0.78.0 port | v0.78.0 | Ported in the author's private build pipeline and running in the author's private desktop OpenBot v0.78.0 as of 2026-11-25; not yet published here. In that port, the avatar-editor character CSS moved to `packages/ui/src/features/agents/avatar-editor.css` because upstream v0.78.0 moved the stylesheet. |
 
 ## Adding a character
 
